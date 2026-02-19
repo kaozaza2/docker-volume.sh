@@ -2,25 +2,34 @@
 
 Usage:
   docker-volume.sh list
-  docker-volume.sh search  <substring>
-  docker-volume.sh create  <volume>
-  docker-volume.sh clone   <volume> <new-volume>
-  docker-volume.sh zip     [-f|--format zip|gz|xz|tar] [-v|--verbose] <volume> <archive>
-  docker-volume.sh restore [-f|--force] <archive> <volume>
-  docker-volume.sh ls      <volume> [ls-options…] [/path]
-  docker-volume.sh cp      [cp-flags…] <src> <dst>
-  docker-volume.sh mv      [mv-flags…] <src> <dst>
-  docker-volume.sh chown   [chown-flags…] <owner[:group]> <vol:<volume>:/path>
-  docker-volume.sh chmod   [chmod-flags…] <mode>           <vol:<volume>:/path>
-  docker-volume.sh cat     <volume> /absolute/path
-  docker-volume.sh tail    [-f] [-n N] <volume> /absolute/path
-  docker-volume.sh install-completion
+  docker-volume.sh search   <substring>
+  docker-volume.sh create   <volume>
+  docker-volume.sh rename   <volume> <new-name>
+  docker-volume.sh clone    <volume> <new-volume>
+  docker-volume.sh snapshot <volume>
+  docker-volume.sh backup   [-f|--format zip|gz|xz|tar] [-v|--verbose] <volume> <archive>
+  docker-volume.sh restore  [-f|--force] <archive> <volume>
+  docker-volume.sh ls       <volume> [ls-options…] [/path]
+  docker-volume.sh find     <volume> [/path] [find-options…]
+  docker-volume.sh du       <volume> [/path]
+  docker-volume.sh cat      <volume> /absolute/path
+  docker-volume.sh tail     <volume> [-f] [-n N] /absolute/path
+  docker-volume.sh rm       <volume> [rm-flags…] /path […/path]
+  docker-volume.sh cp       [cp-flags…] <src> <dst>
+  docker-volume.sh mv       [mv-flags…] <src> <dst>
+  docker-volume.sh chown    <volume> [chown-flags…] <owner[:group]> /path
+  docker-volume.sh chmod    <volume> [chmod-flags…] <mode> /path
+  docker-volume.sh install-completion [--shell bash|zsh] [--print]
 
-Endpoint syntax:
+Endpoint syntax (cp / mv):
   vol:<volume>:/absolute/path   — a path inside a named volume
   dst:/absolute/or/relative     — a path on the host (relative to CWD)
 
 Examples:
-  docker-volume.sh cp  vol:app_data:/config.json  dst:./backup/config.json
-  docker-volume.sh zip --format xz  my_volume  my_volume.tar.xz
-  docker-volume.sh ls  my_volume -lh /var/log
+  docker-volume.sh backup   my_volume my_volume.tar.xz
+  docker-volume.sh restore  my_volume.tar.xz my_volume_restored
+  docker-volume.sh snapshot my_volume
+  docker-volume.sh find     my_volume /var/log -name '*.log' -mtime -7
+  docker-volume.sh du       my_volume /var
+  docker-volume.sh chown    my_volume www-data:www-data /var/www
+  docker-volume.sh cp       vol:app_data:/config.json dst:./backup/config.json
