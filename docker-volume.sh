@@ -604,7 +604,7 @@ _docker_volume_toolbox() {
     prev="${words[$cword-1]}"
   fi
 
-  local commands='list search create rename clone snapshot backup restore ls find du cat tail rm cp mv chown chmod install-completion help'
+  local commands='list search create remove rename clone snapshot backup restore ls find du cat tail rm cp mv chown chmod install-completion help'
 
   local cmd="" cmd_idx=0 i
   for (( i = 1; i < ${#words[@]}; i++ )); do
@@ -625,7 +625,7 @@ _docker_volume_toolbox() {
     ls|cat|tail|find|du|rm|snapshot|chown|chmod)
       [[ $arg_pos -eq 1 ]] && COMPREPLY=( $(compgen -W "$(_dvt_volumes)" -- "$cur") )
       ;;
-    clone|rename)
+    clone|rename|remove)
       [[ $arg_pos -eq 1 ]] && COMPREPLY=( $(compgen -W "$(_dvt_volumes)" -- "$cur") )
       ;;
     backup)
@@ -678,6 +678,7 @@ _docker_volume_toolbox() {
     'list:List all volumes'
     'search:Search volumes by substring'
     'create:Create a new volume'
+    'remove:Remoce a volume'
     'rename:Rename a volume'
     'clone:Clone a volume'
     'snapshot:Snapshot a volume with a timestamp'
@@ -713,7 +714,7 @@ _docker_volume_toolbox() {
         ls|cat|tail|find|du|rm|snapshot|chown|chmod)
           (( CURRENT == 2 )) && _wanted volumes expl 'volume' compadd -a volumes
           ;;
-        clone|rename)
+        clone|rename|remove)
           case $CURRENT in
             2) _wanted volumes expl 'source volume' compadd -a volumes ;;
           esac
