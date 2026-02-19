@@ -45,6 +45,18 @@ ensure_volume() {
   docker volume create "$vol" >/dev/null
 }
 
+ensure_confirmation() {
+  local message="${1:-Continue?}"
+  local reply
+  printf "%s [y/N]: " "$message" >&2
+  read -r reply
+  case "$reply" in
+    y|Y|yes|YES) return 0 ;;
+    *) exit 0 ;;
+  esac
+}
+
+
 # ─── usage ────────────────────────────────────────────────────────────────────
 
 usage() {
@@ -105,6 +117,16 @@ cmd_create() {
   docker volume create "$vol"
 }
 
+# ─── remove ───────────────────────────────────────────────────────────────────
+
+cmd_remove() {
+  [[ $# -ge 1 ]] || die "'remove' requires a volume name"
+  local vol="$1"
+  volume_exists "$vol" || die "volume '$vol' does not exist"
+  ensure_confirmation "Do you really want to remove volume '$vol'?"
+  docker volume rm "$vol"
+}
+
 # ─── rename ───────────────────────────────────────────────────────────────────
 
 cmd_rename() {
@@ -131,8 +153,10 @@ cmd_clone() {
   local src_vol="$1" dst_vol="$2"
   [[ "$src_vol" != "$dst_vol" ]] || die "'clone': source and destination must differ"
   volume_exists "$src_vol" || die "volume '$src_vol' does not exist"
-  volume_exists "$dst_vol" && die "volume '$dst_vol' already exists"
-
+  if volume_exists "$dst_vol"; then
+    ensure_confirmation "volume '$dst_vol' already exists, override?"
+    docker volume rm "$dst_vol" >/dev/null
+  fi
   docker volume create "$dst_vol" >/dev/null
   docker run --rm \
     -v "$src_vol:/src:ro" \
@@ -228,12 +252,10 @@ cmd_restore() {
   [[ -f "$archive" ]] || die "archive '$archive' does not exist or is not a file"
 
   if volume_exists "$vol"; then
-    [[ -n "$force" ]] || die "volume '$vol' already exists (use -f|--force to overwrite)"
-    docker run --rm -v "$vol:/data:rw" "$DOCKER_IMAGE" \
-      sh -c "rm -rf /data/* /data/.[!.]* 2>/dev/null || true"
-  else
-    docker volume create "$vol" >/dev/null
+    [[ -n "$force" ]] || ensure_confirmation "volume '$vol' already exists, override?"
+	docker volume rm "$dst_vol" >/dev/null
   fi
+  docker volume create "$vol" >/dev/null
 
   local archive_abs archive_base
   archive_abs="$(cd "$(dirname "$archive")" && pwd)/$(basename "$archive")"
@@ -362,12 +384,12 @@ cmd_rm() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      -r|-R|-f|-rf|-fr|-Rf|-fR) rm_opts+=("$1"); shift ;;
-      --recursive|--force)       rm_opts+=("$1"); shift ;;
-      --)                        shift; break ;;
-      /*)                        paths+=("$1"); shift ;;
-      -*)                        die "unknown rm option: $1" ;;
-      *)                         die "'rm': expected an absolute path, got '$1'" ;;
+      --recursive|--force|--verbose) rm_opts+=("$1") shift ;;
+	  -[rfvR]*)                      rm_opts+=("$1") shift ;;
+	  --)                            shift break ;;
+	  /*)                            paths+=("$1") shift ;;
+	  -*)                            die "unknown rm option: $1" ;;
+	  *)                             die "'rm': expected an absolute path, got '$1'" ;;
     esac
   done
   while [[ $# -gt 0 ]]; do paths+=("$1"); shift; done
