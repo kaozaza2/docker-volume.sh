@@ -1,0 +1,26 @@
+./docker-volume.sh
+
+Usage:
+  docker-volume.sh list
+  docker-volume.sh search  <substring>
+  docker-volume.sh create  <volume>
+  docker-volume.sh clone   <volume> <new-volume>
+  docker-volume.sh zip     [-f|--format zip|gz|xz|tar] [-v|--verbose] <volume> <archive>
+  docker-volume.sh restore [-f|--force] <archive> <volume>
+  docker-volume.sh ls      <volume> [ls-options…] [/path]
+  docker-volume.sh cp      [cp-flags…] <src> <dst>
+  docker-volume.sh mv      [mv-flags…] <src> <dst>
+  docker-volume.sh chown   [chown-flags…] <owner[:group]> <vol:<volume>:/path>
+  docker-volume.sh chmod   [chmod-flags…] <mode>           <vol:<volume>:/path>
+  docker-volume.sh cat     <volume> /absolute/path
+  docker-volume.sh tail    [-f] [-n N] <volume> /absolute/path
+  docker-volume.sh install-completion
+
+Endpoint syntax:
+  vol:<volume>:/absolute/path   — a path inside a named volume
+  dst:/absolute/or/relative     — a path on the host (relative to CWD)
+
+Examples:
+  docker-volume.sh cp  vol:app_data:/config.json  dst:./backup/config.json
+  docker-volume.sh zip --format xz  my_volume  my_volume.tar.xz
+  docker-volume.sh ls  my_volume -lh /var/log
