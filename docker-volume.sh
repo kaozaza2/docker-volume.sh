@@ -65,6 +65,7 @@ Usage:
   $SCRIPT_NAME list
   $SCRIPT_NAME search   <substring>
   $SCRIPT_NAME create   <volume>
+  $SCRIPT_NAME remove   <volume> [-f|--force]
   $SCRIPT_NAME rename   <volume> <new-name>
   $SCRIPT_NAME clone    <volume> <new-volume>
   $SCRIPT_NAME snapshot <volume>
