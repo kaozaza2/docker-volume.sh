@@ -120,10 +120,18 @@ cmd_create() {
 # ─── remove ───────────────────────────────────────────────────────────────────
 
 cmd_remove() {
-  [[ $# -ge 1 ]] || die "'remove' requires a volume name"
+  [[ $# -ge 1 ]] || die "'remove' requires <volume>"
   local vol="$1"
+  shift
+  local force=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -f|--force) force=1; shift ;;
+      *)          die "unknown option: $1" ;;
+    esac
+  done
   volume_exists "$vol" || die "volume '$vol' does not exist"
-  ensure_confirmation "Do you really want to remove volume '$vol'?"
+  [[ -n "$force" ]] || ensure_confirmation "Do you really want to remove volume '$vol'?"
   docker volume rm "$vol"
 }
 
@@ -134,7 +142,11 @@ cmd_rename() {
   local src_vol="$1" dst_vol="$2"
   [[ "$src_vol" != "$dst_vol" ]] || die "'rename': source and destination must differ"
   volume_exists "$src_vol" || die "volume '$src_vol' does not exist"
-  volume_exists "$dst_vol" && die "volume '$dst_vol' already exists"
+
+  if volume_exists "$dst_vol"; then
+    ensure_confirmation "volume '$dst_vol' already exists, override?"
+    docker volume rm "$dst_vol" >/dev/null
+  fi
 
   docker volume create "$dst_vol" >/dev/null
   docker run --rm \
