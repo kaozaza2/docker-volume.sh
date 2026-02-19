@@ -266,7 +266,8 @@ cmd_restore() {
 
   if volume_exists "$vol"; then
     [[ -n "$force" ]] || ensure_confirmation "volume '$vol' already exists, override?"
-	docker volume rm "$dst_vol" >/dev/null
+    # BUG FIX #1: was "$dst_vol" (undefined variable), must be "$vol"
+    docker volume rm "$vol" >/dev/null
   fi
   docker volume create "$vol" >/dev/null
 
@@ -397,12 +398,14 @@ cmd_rm() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --recursive|--force|--verbose) rm_opts+=("$1") shift ;;
-	  -[rfvR]*)                      rm_opts+=("$1") shift ;;
-	  --)                            shift break ;;
-	  /*)                            paths+=("$1") shift ;;
-	  -*)                            die "unknown rm option: $1" ;;
-	  *)                             die "'rm': expected an absolute path, got '$1'" ;;
+      # BUG FIX #2: missing semicolons between commands on these three lines
+      --recursive|--force|--verbose) rm_opts+=("$1"); shift ;;
+      -[rfvR]*)                      rm_opts+=("$1"); shift ;;
+      # BUG FIX #3: `shift break` is not valid — must be `shift; break`
+      --)                            shift; break ;;
+      /*)                            paths+=("$1"); shift ;;
+      -*)                            die "unknown rm option: $1" ;;
+      *)                             die "'rm': expected an absolute path, got '$1'" ;;
     esac
   done
   while [[ $# -gt 0 ]]; do paths+=("$1"); shift; done
@@ -670,6 +673,10 @@ _dvt_completion_zsh() {
 _dvt_volumes() { docker volume ls --format '{{.Name}}' 2>/dev/null }
 
 _docker_volume_toolbox() {
+  # Guard: if zsh is completing a plain path/file (e.g. ./docker-volume.sh d<TAB>)
+  # the service will be the script path; redirect to our handler.
+  [[ "$service" == *docker-volume* || "$service" == *dvt* ]] || return 1
+
   local state line
   typeset -A opt_args
 
@@ -678,7 +685,8 @@ _docker_volume_toolbox() {
     'list:List all volumes'
     'search:Search volumes by substring'
     'create:Create a new volume'
-    'remove:Remoce a volume'
+    # BUG FIX #4: typo 'Remoce' → 'Remove'
+    'remove:Remove a volume'
     'rename:Rename a volume'
     'clone:Clone a volume'
     'snapshot:Snapshot a volume with a timestamp'
@@ -763,7 +771,11 @@ _docker_volume_toolbox() {
   esac
 }
 ZSH
+  # Register completion for:
+  #   - bare command name (e.g. docker-volume.sh)
+  #   - path-prefixed invocation (e.g. ./docker-volume.sh)
   printf 'compdef _docker_volume_toolbox %s\n' "$bin"
+  printf 'compdef _docker_volume_toolbox ./%s\n' "$bin"
 }
 
 cmd_install_completion() {
@@ -813,16 +825,18 @@ cmd_install_completion() {
       fi
       ;;
     zsh)
+      # Strip .sh suffix — zsh autoload breaks on filenames containing dots
+      local bin_stem="${bin%.sh}"
       local fpath_dir
       for fpath_dir in "${fpath[@]:-}"; do
         [[ -z "$fpath_dir" ]] && continue
         if [[ -d "$fpath_dir" && -w "$fpath_dir" ]]; then
-          dest="$fpath_dir/_$bin"
+          dest="$fpath_dir/_$bin_stem"
           break
         fi
       done
       if [[ -z "${dest:-}" ]]; then
-        dest="${ZDOTDIR:-$HOME}/.zsh/completions/_$bin"
+        dest="${ZDOTDIR:-$HOME}/.zsh/completions/_$bin_stem"
         mkdir -p "$(dirname "$dest")"
         echo "Note: add 'fpath=($(dirname "$dest") \$fpath)' to your .zshrc if not already present"
       fi
@@ -833,7 +847,10 @@ cmd_install_completion() {
   echo "Completion installed → $dest"
   case "$shell" in
     bash) echo "Reload with: source '$dest'  (or open a new shell)" ;;
-    zsh)  echo "Reload with: compinit  (or open a new shell)" ;;
+    zsh)
+	  echo "Reload with: compinit  (or open a new shell)"
+	  echo "or source manually: source <($SCRIPT_NAME install-completion --print)"
+	  ;;
   esac
 }
 
@@ -856,6 +873,7 @@ main() {
     list)     cmd_list ;;
     search)   cmd_search "$@" ;;
     create)   cmd_create "$@" ;;
+    remove)   cmd_remove "$@" ;;
     rename)   cmd_rename "$@" ;;
     clone)    cmd_clone "$@" ;;
     snapshot) cmd_snapshot "$@" ;;
