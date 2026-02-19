@@ -4,6 +4,7 @@ Usage:
   docker-volume.sh list
   docker-volume.sh search   <substring>
   docker-volume.sh create   <volume>
+  docker-volume.sh remove   <volume> [-f|--force]
   docker-volume.sh rename   <volume> <new-name>
   docker-volume.sh clone    <volume> <new-volume>
   docker-volume.sh snapshot <volume>
