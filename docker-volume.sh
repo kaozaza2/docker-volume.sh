@@ -179,18 +179,22 @@ cmd_restore() {
     docker volume create "$vol" >/dev/null
   fi
 
+  local archive_abs archive_base
+  archive_abs="$(cd "$(dirname "$archive")" && pwd)/$(basename "$archive")"
+  archive_base="$(basename "$archive")"
+
   local extract_cmd
-  case "$archive" in
-    *.zip)          extract_cmd="unzip -o /in/$archive -d /data" ;;
-    *.tar.gz|*.tgz) extract_cmd="tar xzf /in/$archive -C /data" ;;
-    *.tar.xz|*.txz) extract_cmd="tar xJf /in/$archive -C /data" ;;
-    *.tar)           extract_cmd="tar xf  /in/$archive -C /data" ;;
+  case "$archive_base" in
+    *.zip)            extract_cmd="unzip -o /in/$archive_base -d /data" ;;
+    *.tar.gz|*.tgz)  extract_cmd="tar xzf /in/$archive_base -C /data" ;;
+    *.tar.xz|*.txz)  extract_cmd="tar xJf /in/$archive_base -C /data" ;;
+    *.tar)            extract_cmd="tar xf  /in/$archive_base -C /data" ;;
     *) die "cannot detect format of '$archive' (expected .zip, .tar.gz, .tgz, .tar.xz, .txz, .tar)" ;;
   esac
 
   docker run --rm \
     -v "$vol:/data:rw" \
-    -v "$(pwd):/in:ro" \
+    -v "$(dirname "$archive_abs"):/in:ro" \
     "$DOCKER_IMAGE" \
     sh -c "$extract_cmd"
 
@@ -261,16 +265,17 @@ cmd_cat_tail() {
   local full_path
   full_path="$(join_path /data "$path")"
 
-  docker run --rm \
-    -v "$vol:/data:ro" \
-    "$DOCKER_IMAGE" \
-    sh -c '[ -f "$1" ] || { echo "error: not a regular file: $2" >&2; exit 1; }' \
-    -- "$full_path" "$path"
+  # Allocate a TTY only for `tail -f` so streaming works correctly.
+  local tty_flag=""
+  [[ "$subcmd" == "tail" ]] && [[ " ${cmd_opts[*]:-} " == *" -f "* ]] && tty_flag="-it"
 
-  docker run --rm \
+  # shellcheck disable=SC2086
+  docker run --rm $tty_flag \
     -v "$vol:/data:ro" \
     "$DOCKER_IMAGE" \
-    "$subcmd" "${cmd_opts[@]+"${cmd_opts[@]}"}" "$full_path"
+    sh -c '[ -f "$1" ] || { echo "error: not a regular file: $2" >&2; exit 1; }
+           shift 2; exec "$@"' \
+    -- "$full_path" "$path" "$subcmd" "${cmd_opts[@]+"${cmd_opts[@]}"}" "$full_path"
 }
 
 # ─── endpoint parser ──────────────────────────────────────────────────────────
@@ -349,11 +354,10 @@ cmd_cp_mv() {
         -v "$src_vol:/src:ro" \
         -v "$dst_vol:/dst:rw" \
         "$DOCKER_IMAGE" \
-        sh -c "
-          [ -e '$src_full' ] || { echo 'error: source does not exist: $src_path' >&2; exit 1; }
-          mkdir -p \"\$(dirname '$dst_full')\"
-          cp ${flags:+$flags} -a '$src_full' '$dst_full'
-        "
+        sh -c '[ -e "$1" ] || { echo "error: source does not exist: $2" >&2; exit 1; }
+               mkdir -p "$(dirname "$3")"
+               cp -a ${4:+$4} "$1" "$3"' \
+        -- "$src_full" "$src_path" "$dst_full" "${flags:-}"
 
       if [[ "$mode" == "mv" ]]; then
         docker run --rm \
@@ -364,38 +368,38 @@ cmd_cp_mv() {
       ;;
 
     vol:dst)
-      local src_full="$(join_path /src "$src_path")"
+      local src_full
+      src_full="$(join_path /src "$src_path")"
       mkdir -p "$(dirname "$dst_path")"
 
       docker run --rm \
         -v "$src_vol:/src:ro" \
         -v "$(pwd):/out" \
         "$DOCKER_IMAGE" \
-        sh -c "
-          [ -e '$src_full' ] || { echo 'error: source does not exist: $src_path' >&2; exit 1; }
-          cp ${flags:+$flags} -a '$src_full' \"/out/$dst_path\"
-        "
+        sh -c '[ -e "$1" ] || { echo "error: source does not exist: $2" >&2; exit 1; }
+               cp -a ${3:+$3} "$1" "/out/$4"' \
+        -- "$src_full" "$src_path" "${flags:-}" "$dst_path"
 
       if [[ "$mode" == "mv" ]]; then
         docker run --rm \
           -v "$src_vol:/src:rw" \
           "$DOCKER_IMAGE" \
-          rm -rf "$(join_path /src "$src_path")"
+          rm -rf "$src_full"
       fi
       ;;
 
     dst:vol)
       [[ -e "$src_path" ]] || die "source '$src_path' does not exist"
-      local dst_full="$(join_path /dst "$dst_path")"
+      local dst_full
+      dst_full="$(join_path /dst "$dst_path")"
 
       docker run --rm \
         -v "$dst_vol:/dst:rw" \
         -v "$(pwd):/in" \
         "$DOCKER_IMAGE" \
-        sh -c "
-          mkdir -p \"\$(dirname '$dst_full')\"
-          cp ${flags:+$flags} -a \"/in/$src_path\" '$dst_full'
-        "
+        sh -c 'mkdir -p "$(dirname "$1")"
+               cp -a ${2:+$2} "/in/$3" "$1"' \
+        -- "$dst_full" "${flags:-}" "$src_path"
 
       [[ "$mode" == "mv" ]] && rm -rf "$src_path"
       ;;
@@ -429,10 +433,9 @@ cmd_chown_chmod() {
   docker run --rm \
     -v "$EP_VOL:/data:rw" \
     "$DOCKER_IMAGE" \
-    sh -c "
-      [ -e '$full_path' ] || { echo 'error: path does not exist: $EP_PATH' >&2; exit 1; }
-      $subcmd ${flags:+$flags} '$value' '$full_path'
-    "
+    sh -c '[ -e "$1" ] || { echo "error: path does not exist: $2" >&2; exit 1; }
+           shift 2; exec "$@"' \
+    -- "$full_path" "$EP_PATH" "$subcmd" ${flags:+$flags} "$value" "$full_path"
 }
 
 # ─── shell completion ─────────────────────────────────────────────────────────
